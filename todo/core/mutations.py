@@ -1,7 +1,7 @@
 import graphene
-
+from django.core.exceptions import ValidationError
 from .models import Category, Book
-from .schema import CategoryType, BookType, CoreQuery
+from .schema import CategoryType, BookType
 
 
 # Mutation
@@ -12,13 +12,15 @@ class CreateCategory(graphene.Mutation):
         # id = graphene.ID()
 
     category = graphene.Field(CategoryType)
+    message = graphene.String()
 
     @classmethod
     def mutate(cls, root, info, title):
         category = Category()
         category.title = title
         category.save()
-        return CreateCategory(category=category)
+        msg = "Category successfully created!"
+        return CreateCategory(category=category, message=msg)
 
 
 # Update Category
@@ -28,13 +30,21 @@ class UpdateCategory(graphene.Mutation):
         id = graphene.ID()
 
     category = graphene.Field(CategoryType)
+    message = graphene.String()
 
     @classmethod
     def mutate(cls, root, info, title, id):
-        category = Category.objects.get(pk=id)
-        category.title = title
-        category.save()
-        return UpdateCategory(category=category)
+        try:
+            category = Category.objects.get(pk=id)
+        except Category.DoesNotExist:
+            raise ValidationError(message="Category does not exists", code=404)
+        if category:
+            category.title = title
+            category.save()
+        else:
+            pass
+        msg = "Category updated successfully!"
+        return UpdateCategory(category=category, message=msg)
 
 
 # Delete Category
@@ -46,8 +56,14 @@ class DeleteCategory(graphene.Mutation):
 
     @classmethod
     def mutate(cls, root, info, id):
-        category = Category.objects.get(pk=id)
-        category.delete()
+        try:
+            category = Category.objects.get(pk=id)
+        except Category.DoesNotExist:
+            raise ValidationError(message="Category does not exists", code=404)
+        if category:
+            category.delete()
+        else:
+            pass
         return None
 
 
@@ -60,6 +76,7 @@ class CreateBook(graphene.Mutation):
         price = graphene.Int(required=True)
 
     book = graphene.Field(BookType)
+    message = graphene.String()
 
     @classmethod
     def mutate(cls, root, info, title, author, price, description=None):
@@ -69,8 +86,8 @@ class CreateBook(graphene.Mutation):
         book.description = description
         book.price = price
         book.save()
-
-        return CreateBook(book=book)
+        msg = "Book created Successfully!"
+        return CreateBook(book=book, message=msg)
 
 
 # Update Book
@@ -83,17 +100,24 @@ class UpdateBook(graphene.Mutation):
         description = graphene.String(required=False)
 
     book = graphene.Field(BookType)
+    message = graphene.String()
 
     @classmethod
     def mutate(cls, root, info, id, title, author, price, description=None):
-        book = Book.objects.get(id=id)
-        book.title = title
-        book.author = author
-        book.price = price
-        book.description = description
-        book.save()
-
-        return UpdateBook(book=book)
+        try:
+            book = Book.objects.get(id=id)
+        except Book.DoesNotExist:
+            raise ValidationError(message="Book does not exists", code=404)
+        if book:
+            book.title = title
+            book.author = author
+            book.price = price
+            book.description = description
+            book.save()
+        else:
+            pass
+        msg = "Book successfully updated!"
+        return UpdateBook(book=book, message=msg)
 
 
 # Delete Book
@@ -105,7 +129,10 @@ class DeleteBook(graphene.Mutation):
 
     @classmethod
     def mutate(cls, root, info, id):
-        book = Book.objects.get(pk=id)
+        try:
+            book = Book.objects.get(pk=id)
+        except Book.DoesNotExist:
+            raise ValidationError(message="Book does not exists", code=404)
         book.delete()
         return None
 

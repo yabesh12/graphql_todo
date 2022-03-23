@@ -1,10 +1,9 @@
 import random
 import graphene
 from django.contrib.auth import get_user_model
-from django.core.cache import cache, caches
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.http import JsonResponse
-
+from graphql_jwt.shortcuts import get_token
 from .schema import UserType
 
 User = get_user_model()
@@ -20,6 +19,7 @@ class CreateUser(graphene.Mutation):
         password = graphene.String(required=True)
         city = graphene.String()
 
+    message = graphene.String()
     user = graphene.Field(UserType)
 
     @classmethod
@@ -32,7 +32,8 @@ class CreateUser(graphene.Mutation):
         if city := kwargs.get('city'):
             user_obj.city = city
         user_obj.save()
-        return CreateUser(user=user_obj)
+        message = "User created Successfully!"
+        return CreateUser(user=user_obj, message=message)
 
 
 class LoginUser(graphene.Mutation):
@@ -44,51 +45,60 @@ class LoginUser(graphene.Mutation):
     @classmethod
     def mutate(cls, root, info, mobile_no):
         try:
-            user_obj = User.objects.get(mobile_no=mobile_no)
+            user_obj = User.objects.filter(mobile_no=mobile_no).first()
         except User.DoesNotExist:
             raise ValidationError("Invalid user")
         if user_obj:
+            token = get_token(user_obj)
+            print(token)
             cache_key = mobile_no
-            print(cache_key)
-            cache_time = 300
+            cache_time = 300  # 5 minutes
             data = cache.get(cache_key)
-            print(data)
 
             if data is None:
                 otp = random.randint(1000, 9999)
-                m_cache = cache.set(cache_key, otp, cache_time)
-                print(m_cache)
+                cache.set(cache_key, otp, cache_time)
+                cache_data = cache.get(cache_key)
+                print(cache_data)
+
             elif data is not None:
-                result = cache.get(cache_key)
-                print(str(result) + ' ' + "result")
+                cache.get(cache_key)
             else:
-                print("no matching")
+                raise ValidationError("Otp not found!")
         else:
             pass
+        return LoginUser(user=user_obj)
 
 
 class VerifyUser(graphene.Mutation):
     class Arguments:
         mobile_no = graphene.String(required=True)
         otp = graphene.Int(required=True)
+        token = graphene.String(required=True)
 
     user = graphene.Field(UserType)
+    message = graphene.String()
 
     @classmethod
-    def mutate(cls, root, info, mobile_no, otp):
+    def mutate(cls, root, info, mobile_no, otp, token):
         try:
-            user_obj = User.objects.get(mobile_no=mobile_no)
+            user_obj = User.objects.filter(mobile_no=mobile_no).first()
         except User.DoesNotExist:
             raise ValidationError("Invalid user")
 
         if user_obj:
             data_otp = cache.get(mobile_no)
-            if otp == data_otp:
-                print("user verified")
+            token = token
+            if otp == data_otp and token == token:
+                msg = "user verified"
+                return VerifyUser(user=user_obj, message=msg)
+            elif otp == data_otp and token != token:
+                raise ValidationError("Token is not matching")
             else:
-                print("user not verified")
+                raise ValidationError("Otp is not matching")
         else:
             pass
+        return VerifyUser(user=user_obj)
 
 
 class UserMutation(graphene.ObjectType):

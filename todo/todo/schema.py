@@ -1,6 +1,4 @@
 import graphene
-
-# Query for getting the data from the server.
 import graphql_jwt
 from accounts.mutations import UserMutation
 from accounts.schema import UserQuery
